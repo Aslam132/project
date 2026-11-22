@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#09090c">
+  <meta name="description" content="Відмазатор — AI-генератор ввічливих відповідей: опиши ситуацію й отримай три готові варіанти.">
+  <script>
+    /* Застосовуємо збережену тему до першого малювання сторінки, щоб не було «блимання» */
+    (function () {
+      try {
+        var saved = JSON.parse(localStorage.getItem("vidmazator_theme_v1") || "null");
+        if (!saved || !saved.id) return;
+        var root = document.documentElement;
+        root.setAttribute("data-theme", String(saved.id).slice(0, 20));
+        var vars = saved.vars;
+        if (vars && typeof vars === "object") {
+          for (var key in vars) {
+            if (/^--(accent|glow|on-accent)/.test(key) && typeof vars[key] === "string" && vars[key].length < 40) {
+              root.style.setProperty(key, vars[key]);
+            }
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <title>Відмазатор — AI генератор</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23ff3548'/%3E%3Ctext x='16' y='23' font-size='20' font-weight='700' text-anchor='middle' fill='white' font-family='Arial'%3E%D0%92%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Manrope та Onest підтримують кирилицю (Space Grotesk і DM Sans — ні) -->
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-key="missing">
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#">
+        <span class="brand-mark">В<span>.</span></span>
+        <span class="brand-name">ВІДМАЗА<span>ТОР</span></span>
+      </a>
+      <div class="topbar-right">
+        <div class="system-status"><i></i> <span id="systemStatusText">ПОТРІБЕН API-КЛЮЧ</span></div>
+        <div class="theme-wrap" id="themeWrap">
+          <button class="theme-btn" id="themeBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="themeMenu">
+            <i class="theme-dot"></i> ТЕМА
+          </button>
+          <div class="theme-menu hidden" id="themeMenu" role="group" aria-label="Тема оформлення">
+            <div class="theme-head">
+              <span class="theme-title">ТЕМА ОФОРМЛЕННЯ</span>
+              <span class="theme-name" id="themeName">Червоний</span>
+            </div>
+            <div class="theme-grid" id="themeGrid" role="group" aria-label="Готові теми"></div>
+            <label class="custom-color" for="customColor">
+              <input type="color" id="customColor" value="#ff3548">
+              <span>Свій колір акценту</span>
+            </label>
+            <p class="theme-hint">Колір змінює кнопки, підсвічування та градієнти. Вибір зберігається в цьому браузері.</p>
+          </div>
+        </div>
+        <a class="github-link" href="#generator">ГЕНЕРАТОР <span>↗</span></a>
+      </div>
+    </header>
+
+    <main>
+      <noscript>
+        <p class="empty is-error">Для роботи генератора потрібно ввімкнути JavaScript у браузері.</p>
+      </noscript>
+
+      <section class="hero">
+        <div class="eyebrow"><span class="eyebrow-line"></span> SMART EXCUSE GENERATOR <span class="eyebrow-line"></span></div>
+        <h1>Вихід є. <span>Завжди.</span></h1>
+        <p class="hero-copy">Опиши ситуацію — AI запропонує три варіанти відповіді. Обери стиль, скопіюй результат і адаптуй його під себе.</p>
+        <div class="hero-meta">
+          <span><b>01</b> ОПИШИ СИТУАЦІЮ</span>
+          <span class="meta-divider"></span>
+          <span><b>02</b> ОБЕРИ ТОН</span>
+          <span class="meta-divider"></span>
+          <span><b>03</b> ОТРИМАЙ ВІДПОВІДЬ</span>
+        </div>
+      </section>
+
+      <section class="workspace" id="generator">
+        <div class="workspace-main">
+          <div class="section-heading">
+            <div>
+              <div class="section-kicker">ТВІЙ ЗАПИТ</div>
+              <h2>Створи <span>відповідь</span></h2>
+            </div>
+            <div class="step-pill" id="stepPill">КРОК 01 / 03</div>
+          </div>
+
+          <form class="form-card" id="generatorForm" novalidate>
+            <div class="field-head">
+              <label for="situation">ЩО СТАЛОСЯ?</label>
+              <span class="optional-label">ОБОВ'ЯЗКОВО</span>
+            </div>
+            <textarea id="situation" maxlength="1200" placeholder="Наприклад: запізнився на зустріч, не встиг виконати завдання, забув передзвонити..." required></textarea>
+            <div class="textarea-bottom">
+              <span class="helper-text">Опиши ситуацію кількома словами або детально. Ctrl + Enter — згенерувати.</span>
+              <span class="char-count" id="charCount">0 / 1200</span>
+            </div>
+
+            <div class="chips" id="examples">
+              <span class="chips-label">ПРИКЛАДИ:</span>
+              <button class="chip" type="button" data-text="Запізнююся на зустріч приблизно на 20 хвилин.">Запізнююся на зустріч</button>
+              <button class="chip" type="button" data-text="Не встиг вчасно виконати завдання, дедлайн сьогодні.">Не встиг завдання</button>
+              <button class="chip" type="button" data-text="Забув передзвонити колезі, як обіцяв учора.">Забув передзвонити</button>
+              <button class="chip" type="button" data-text="Не зможу прийти на день народження друга, хочу відмовити ввічливо.">Не прийду на свято</button>
+              <button class="chip" type="button" data-text="Пропустив пару й потрібно пояснити це викладачеві.">Пропустив пару</button>
+            </div>
+
+            <div class="form-divider"></div>
+
+            <div class="fields-grid">
+              <div class="field">
+                <label for="recipient">КОМУ ПИСАТИ</label>
+                <div class="select-wrap">
+                  <select id="recipient">
+                    <option value="">Універсально</option>
+                    <option value="Керівнику або начальнику">Керівнику</option>
+                    <option value="Колезі">Колезі</option>
+                    <option value="Клієнту або партнеру по роботі">Клієнту / партнеру</option>
+                    <option value="Викладачу або вчителю">Викладачу / вчителю</option>
+                    <option value="Другу або подрузі">Другу / подрузі</option>
+                    <option value="Коханій людині">Коханій людині</option>
+                    <option value="Батькам">Батькам</option>
+                    <option value="Родичам">Родичам</option>
+                    <option value="Сусідам">Сусідам</option>
+                    <option value="__custom__">Інше…</option>
+                  </select>
+                  <span>⌄</span>
+                </div>
+                <input class="recipient-custom hidden" id="recipientCustom" type="text" maxlength="80" placeholder="Наприклад: лікарю, орендодавцю, тренеру..." aria-label="Кому саме писати">
+              </div>
+              <div class="field">
+                <label for="channel">КАНАЛ</label>
+                <div class="select-wrap">
+                  <select id="channel">
+                    <option value="Месенджер (Telegram, Viber, WhatsApp): живий чат, без офіційних шапок і підпису">Месенджер</option>
+                    <option value="SMS: дуже коротко, без зайвих деталей">SMS</option>
+                    <option value="Електронний лист: першим рядком «Тема: …», далі привітання, текст і підпис">Електронний лист</option>
+                    <option value="Усна розмова або дзвінок: готова репліка, яку можна сказати вголос">Усно / дзвінок</option>
+                    <option value="Офіційний лист або заява: діловий стиль, звертання, чітка структура">Офіційний лист</option>
+                    <option value="Робочий чат (Slack, Teams): коротко, по суті, без зайвих емоцій">Робочий чат</option>
+                  </select>
+                  <span>⌄</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="genre">ЖАНР</label>
+                <div class="select-wrap">
+                  <select id="genre">
+                    <option value="Звичайне повідомлення без стилізації">Звичайний</option>
+                    <option value="Комедія: легка жартівлива подача, без образ">Комедія</option>
+                    <option value="Драма: емоційна, трохи патетична подача">Драма</option>
+                    <option value="Детектив: подача як у розслідуванні, з інтригою">Детектив</option>
+                    <option value="Фентезі: образна подача з метафорами з казкового світу">Фентезі</option>
+                    <option value="Наукова фантастика: подача з футуристичними образами">Фантастика</option>
+                    <option value="Епос: урочиста героїчна подача">Епос</option>
+                    <option value="Вірш: римовані рядки">Вірш</option>
+                    <option value="Репортаж: подача як у випуску новин">Репортаж</option>
+                  </select>
+                  <span>⌄</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="language">МОВА</label>
+                <div class="select-wrap">
+                  <select id="language">
+                    <option value="Українська">Українська</option>
+                    <option value="Англійська">Англійська</option>
+                    <option value="Польська">Польська</option>
+                    <option value="Німецька">Німецька</option>
+                  </select>
+                  <span>⌄</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="tone">ТОН ВІДПОВІДІ</label>
+                <div class="select-wrap">
+                  <select id="tone">
+                    <option value="Спокійний і ввічливий">Спокійний</option>
+                    <option value="Дружній і невимушений">Дружній</option>
+                    <option value="Серйозний і переконливий">Серйозний</option>
+                    <option value="З гумором, але без образ">З гумором</option>
+                    <option value="Офіційний і діловий">Офіційний</option>
+                    <option value="Короткий і прямий">Короткий</option>
+                    <option value="Щирий і теплий">Щирий</option>
+                    <option value="Впевнений і спокійний">Впевнений</option>
+                    <option value="Вибачливий і м'який">Вибачливий</option>
+                  </select>
+                  <span>⌄</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="style">ФОРМАТ</label>
+                <div class="select-wrap">
+                  <select id="style">
+                    <option value="Реалістичний">Реалістичний</option>
+                    <option value="Креативний">Креативний</option>
+                    <option value="Максимально короткий">Дуже короткий</option>
+                    <option value="Детальний">Детальний</option>
+                    <option value="Тактовний, з визнанням відповідальності">Чесний і тактовний</option>
+                    <option value="З пропозицією, як виправити ситуацію">З планом виправлення</option>
+                    <option value="Переконливий, з аргументами">З аргументами</option>
+                  </select>
+                  <span>⌄</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="generate-btn" id="generateBtn" type="submit">
+                <span class="sparkle">✦</span>
+                <span id="generateLabel">ЗГЕНЕРУВАТИ ВІДПОВІДІ</span>
+                <span class="btn-arrow">→</span>
+              </button>
+              <button class="reset-btn" id="resetBtn" type="button" title="Очистити форму" aria-label="Очистити форму">↺</button>
+            </div>
+            <p class="message" id="message" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+
+        <aside class="workspace-side">
+          <div class="side-card api-card">
+            <div class="side-card-top">
+              <div class="side-icon">✦</div>
+              <span class="side-label">ПІДКЛЮЧЕННЯ AI</span>
+              <span class="secure-dot"></span>
+            </div>
+            <h3>Groq <span>API</span></h3>
+            <p>Встав свій API-ключ Groq — запити надсилаються прямо з браузера, окремий сервер не потрібен. <a class="api-link" href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Отримати ключ ↗</a></p>
+            <label class="api-label" for="apiKey">GROQ API KEY</label>
+            <div class="api-key-row">
+              <input id="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_..." aria-label="Groq API ключ">
+              <button id="toggleKey" type="button" aria-label="Показати або приховати ключ" aria-pressed="false">◉</button>
+            </div>
+            <div class="key-actions">
+              <button class="save-key-btn" id="saveKeyBtn" type="button">ЗАПАМ'ЯТАТИ НА ЦЮ ВКЛАДКУ</button>
+              <button class="forget-key-btn" id="forgetKeyBtn" type="button">ВИДАЛИТИ</button>
+            </div>
+            <p class="api-note"><span>●</span> Ключ не потрапляє в історію чи localStorage. Кнопка «Запам'ятати» зберігає його лише до закриття вкладки, а для генерації достатньо просто вставити ключ.</p>
+            <p class="api-note">Увага: ключ використовується у браузері. Не публікуй сайт із вбудованим ключем і не вводь його на чужому комп'ютері.</p>
+          </div>
+
+          <div class="side-card collection-card">
+            <div class="collection-title">
+              <div>
+                <div class="section-kicker">ТВОЇ ДАНІ</div>
+                <h3>Моя <span>колекція</span></h3>
+              </div>
+              <span class="collection-symbol">▤</span>
+            </div>
+            <div class="tabs" role="tablist" aria-label="Колекція">
+              <button class="tab active" id="historyTab" type="button" role="tab" aria-selected="true">Історія <span id="historyCount">0</span></button>
+              <button class="tab" id="favoritesTab" type="button" role="tab" aria-selected="false">Обране <span id="favoritesCount">0</span></button>
+            </div>
+            <div class="collection-list" id="collectionList">
+              <div class="empty">Тут поки порожньо.<br>Згенеруй першу відповідь.</div>
+            </div>
+            <button class="clear-btn" id="clearCollectionBtn" type="button">ОЧИСТИТИ ІСТОРІЮ</button>
+          </div>
+
+          <div class="tip-card">
+            <div class="tip-icon">✧</div>
+            <div>
+              <b>МАЛЕНЬКА ПОРАДА</b>
+              <p>Найкраща відповідь — та, що звучить природно. Перечитай результат і зміни деталі під свою ситуацію.</p>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="results-section" id="resultsSection">
+        <div class="results-heading">
+          <div>
+            <div class="section-kicker">AI OUTPUT</div>
+            <h2>Твої <span>відповіді</span></h2>
+          </div>
+          <div class="results-actions">
+            <button class="secondary-btn hidden" id="regenBtn" type="button">↻ Ще варіанти</button>
+            <button class="secondary-btn hidden" id="copyAllBtn" type="button">Копіювати всі ↗</button>
+          </div>
+        </div>
+        <div class="output-list" id="outputList" aria-live="polite">
+          <div class="empty">Тут з'являться три варіанти відповіді після генерації.</div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a class="brand footer-brand" href="#">
+        <span class="brand-mark">В<span>.</span></span>
+        <span class="brand-name">ВІДМАЗА<span>ТОР</span></span>
+      </a>
+      <span>ЗРОБЛЕНО ДЛЯ КРЕАТИВНИХ ВІДПОВІДЕЙ</span>
+      <span class="footer-right">AI POWERED · 2026</span>
+    </footer>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
